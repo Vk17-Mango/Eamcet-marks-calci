@@ -1,0 +1,99 @@
+<!DOCTYPE html><html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AMCET Response Evaluator</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .summary { margin-top: 20px; }
+    .correct { color: green; }
+    .incorrect { color: red; }
+    .question-block { margin-bottom: 15px; border-bottom: 1px solid #ccc; padding-bottom: 10px; }
+    .file-input { margin: 20px 0; }
+  </style>
+</head>
+<body>
+  <h1>AMCET Response Sheet Evaluator</h1>
+  <p>Upload your response sheet to calculate your marks:</p>  <input type="file" id="pdfInput" accept="application/pdf" class="file-input" />
+  <div id="results"></div>  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>  <script>
+    const pdfInput = document.getElementById("pdfInput");
+    const resultsDiv = document.getElementById("results");
+
+    function evaluateText(text) {
+      const lines = text.split("\n");
+      let marks = { math: 0, physics: 0, chemistry: 0 };
+      let output = "";
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.startsWith("Q.")) {
+          const qNum = parseInt(line.split(".")[1].trim());
+          let correctOption = null;
+          let chosenOption = null;
+
+          for (let j = 1; j <= 4; j++) {
+            if (lines[i + j]?.includes("✓")) {
+              correctOption = j;
+              break;
+            }
+          }
+
+          for (let k = i; k < i + 10; k++) {
+            if (lines[k]?.includes("Chosen Option:")) {
+              chosenOption = parseInt(lines[k].split(":")[1].trim());
+              break;
+            }
+          }
+
+          let isCorrect = correctOption === chosenOption;
+          if (qNum <= 80) marks.math += isCorrect ? 1 : 0;
+          else if (qNum <= 120) marks.physics += isCorrect ? 1 : 0;
+          else marks.chemistry += isCorrect ? 1 : 0;
+
+          output += `
+            <div class="question-block">
+              <strong>Q.${qNum}</strong> - 
+              ${isCorrect ? '<span class="correct">Correct</span>' : '<span class="incorrect">Incorrect</span>'}<br>
+              Correct Option: ${correctOption}, Your Option: ${chosenOption}
+            </div>
+          `;
+        }
+      }
+
+      output += `
+        <div class="summary">
+          <h2>Score Summary:</h2>
+          Maths: ${marks.math}/80<br>
+          Physics: ${marks.physics}/40<br>
+          Chemistry: ${marks.chemistry}/40<br>
+          <strong>Total: ${marks.math + marks.physics + marks.chemistry}/160</strong>
+        </div>
+      `;
+
+      resultsDiv.innerHTML = output;
+    }
+
+    pdfInput.addEventListener("change", async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = async function () {
+        const typedArray = new Uint8Array(this.result);
+        const pdf = await pdfjsLib.getDocument({ data: typedArray }).promise;
+
+        let fullText = "";
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          const strings = content.items.map(item => item.str);
+          fullText += strings.join("\n") + "\n";
+        }
+
+        evaluateText(fullText);
+      };
+
+      reader.readAsArrayBuffer(file);
+    });
+  </script></body>
+</html>
